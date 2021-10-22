@@ -1,5 +1,9 @@
+from pymashup.lib.getsongbpm import search_song
+
+
 def main():
-    print("Hello, world!")
+    song = search_song("blinding lights")
+    print(song)
 
 
 if __name__ == "__main__":

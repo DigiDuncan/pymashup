@@ -9,15 +9,15 @@ from pymashup import keys
 
 
 s = requests.Session()
-s.headers.update({'x-api-key': keys.getsongbpm})
+s.params.update({'api_key': keys.getsongbpm})
 
 Url = str
 KeyNum = Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
 
 @total_ordering
-@dataclass
-class Artist(eq = False):
+@dataclass(eq = False)
+class Artist:
     id: str
     name: str
     uri: Url
@@ -39,7 +39,7 @@ class Artist(eq = False):
         return self.id == other.id
 
 
-@dataclass
+@dataclass(eq = False)
 class Song:
     id: str
     title: str
@@ -85,6 +85,8 @@ class Key:
 
 def _search(mode: Literal["song", "artist", "both"], lookup: str):
     response = s.get("https://api.getsongbpm.com/search", params = {"type": mode, "lookup": lookup})
+    if response.status_code != 200:
+        raise RuntimeError(f"Repsonse from GetSongBPM was code {response.status_code}. Reason: {response.reason}")
     return response.json()
 
 

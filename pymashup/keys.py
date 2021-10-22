@@ -1,6 +1,6 @@
 import toml
 
-_keys = toml.load("../_KEYS.toml")
+_keys = toml.load("./_KEYS.toml")
 
 # actual keys
-getsongbpm = _keys["getsongbpm"]
+getsongbpm = _keys["keys"]["getsongbpm"]
