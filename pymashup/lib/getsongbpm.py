@@ -1,14 +1,14 @@
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Optional
 from urllib.parse import quote_plus
 from functools import total_ordering
 
-import requests
+import cloudscraper
 
 from pymashup import keys
 
 
-s = requests.Session()
+s = cloudscraper.CloudScraper()
 s.params.update({'api_key': keys.getsongbpm})
 
 Url = str
@@ -38,6 +38,17 @@ class Artist:
 
         return self.id == other.id
 
+    @classmethod
+    def from_json(cls, jsondata: dict):
+        artist_id = jsondata["id"]
+        name = jsondata["name"]
+        uri = jsondata["uri"]
+        img = jsondata["img"]
+        genres = jsondata["genres"]
+        origin = jsondata["from"]
+        mbid = jsondata["mbid"]
+        return Artist(artist_id, name, uri, img, genres, origin, mbid)
+
 
 @dataclass(eq = False)
 class Song:
@@ -45,10 +56,9 @@ class Song:
     title: str
     url: str
     artist: Artist
-    tempo: float
-    time_sig: tuple[int, int]
-    key: tuple[KeyNum, bool]
-    camelot: str
+    tempo: Optional[float]
+    time_sig: Optional[tuple[int, int]]
+    key: Optional[tuple[KeyNum, bool]]
 
     def __lt__(self, other):
         if not isinstance(other, Song):
@@ -61,6 +71,21 @@ class Song:
             raise ValueError(f"Song can only compare to Song, not {other.__class__.__name__}.")
 
         return self.id == other.id
+
+    @classmethod
+    def from_json(cls, jsondata: dict):
+        song_id = jsondata["id"]
+        title = jsondata["title"]
+        uri = jsondata["uri"]
+        artist = Artist.from_json(jsondata["artist"])
+        tempo = jsondata.get("tempo")
+        time_sig = jsondata.get("time_sig")
+        if time_sig is not None:
+            time_sig = [int(i) for i in time_sig.split("/")]
+        key_of = jsondata.get("key_of")
+        if key_of is not None:
+            key_of = str(key_of[:-1]), bool(key_of[-1])
+        return Song(song_id, title, uri, artist, tempo, time_sig, key_of)
 
 
 @dataclass
@@ -84,18 +109,26 @@ class Key:
 
 
 def _search(mode: Literal["song", "artist", "both"], lookup: str):
-    response = s.get("https://api.getsongbpm.com/search", params = {"type": mode, "lookup": lookup})
+    response = s.get(f"https://api.getsongbpm.com/search/?type={mode}&lookup={lookup}")
     if response.status_code != 200:
         raise RuntimeError(f"Repsonse from GetSongBPM was code {response.status_code}. Reason: {response.reason}")
     return response.json()
 
 
-def search_song(song: str):
+def search_songs(song: str):
     lookup = quote_plus(song)
-    return _search("song", lookup)
+    songlist = _search("song", lookup)
+    return [Song.from_json(j) for j in songlist["search"]]
 
 
-def search_artist(artist: str):
+def smart_search_songs(song: str):
+    lookup = quote_plus(song)
+    songlist = _search("song", lookup)
+    id_list = [j["id"] for j in songlist["search"]]
+    return [get_song(i) for i in id_list]
+
+
+def search_artists(artist: str):
     lookup = quote_plus(artist)
     return _search("artist", lookup)
 
@@ -112,7 +145,11 @@ def get_artist(artist_id: str) -> Artist:
 
 
 def get_song(song_id: str) -> Song:
-    pass
+    response = s.get(f"https://api.getsongbpm.com/song/?id={song_id}")
+    if response.status_code != 200:
+        raise RuntimeError(f"Repsonse from GetSongBPM was code {response.status_code}. Reason: {response.reason}")
+    j = response.json()
+    return Song.from_json(j["song"])
 
 
 def get_songs_near_tempo(tempo: int) -> list[Song]:
