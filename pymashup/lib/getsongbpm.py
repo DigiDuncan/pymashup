@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 from urllib.parse import quote_plus
+from functools import total_ordering
 
 import requests
 
@@ -11,10 +12,12 @@ s = requests.Session()
 s.headers.update({'x-api-key': keys.getsongbpm})
 
 Url = str
+KeyNum = Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
 
+@total_ordering
 @dataclass
-class Artist:
+class Artist(eq = False):
     id: str
     name: str
     uri: Url
@@ -22,6 +25,18 @@ class Artist:
     genres: list[str]
     origin: str
     mbid: str
+
+    def __lt__(self, other):
+        if not isinstance(other, Artist):
+            raise ValueError(f"Artist can only compare to Artist, not {other.__class__.__name__}.")
+
+        return self.name, self.id < other.name, other.id
+
+    def __eq__(self, other):
+        if not isinstance(other, Artist):
+            raise ValueError(f"Artist can only compare to Artist, not {other.__class__.__name__}.")
+
+        return self.id == other.id
 
 
 @dataclass
@@ -32,8 +47,20 @@ class Song:
     artist: Artist
     tempo: float
     time_sig: tuple[int, int]
-    key: str
+    key: tuple[KeyNum, bool]
     camelot: str
+
+    def __lt__(self, other):
+        if not isinstance(other, Song):
+            raise ValueError(f"Song can only compare to Song, not {other.__class__.__name__}.")
+
+        return self.tempo, self.key, self.title, self.id < self.tempo, self.key, self.title, self.id
+
+    def __eq__(self, other):
+        if not isinstance(other, Song):
+            raise ValueError(f"Song can only compare to Song, not {other.__class__.__name__}.")
+
+        return self.id == other.id
 
 
 @dataclass
@@ -57,7 +84,8 @@ class Key:
 
 
 def _search(mode: Literal["song", "artist", "both"], lookup: str):
-    pass
+    response = s.get("https://api.getsongbpm.com/search", params = {"type": mode, "lookup": lookup})
+    return response.json()
 
 
 def search_song(song: str):
@@ -89,5 +117,5 @@ def get_songs_near_tempo(tempo: int) -> list[Song]:
     pass
 
 
-def get_songs_in_key(key: int, mode: Literal[0, 1]) -> list[Song]:
+def get_songs_in_key(key: KeyNum, major: bool) -> list[Song]:
     pass
